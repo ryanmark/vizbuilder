@@ -251,9 +251,23 @@ app = VizBuilder.new do
 end
 ```
 
-However, Viz Builder will not transform or minify assets for you. It will not handle SCSS and it will not compile ES6+ down to ES5 Javascript. We recommend using something like [webpack](https://webpack.js.org/) to handle processing javascript and stylesheets.
+Viz Builder will also look in the `prebuild` directory for static assets. The builder will copy these files into the `build` directory during the build process, or it will serve these files directly during development server.
+
+Viz Builder will not transform or minify assets for you. It will not handle SCSS and it will not compile ES6+ down to ES5 Javascript. We recommend using something like [webpack](https://webpack.js.org/) to handle processing javascript and stylesheets. Whatever tool you use should be configured to save output files to `prebuild`.
 
 If you only have a little script and style in your site, we recommend just using vanilla Javascript and CSS.
+
+#### Asset hashing
+
+Viz Builder automatically adds sha1 crypto hashes to the filenames of certain asset files when building out a site. Any files copied from the `prebuild` directory will get these hashes. You can have these crypto hashes added to any page with the `digest` option:
+
+```ruby
+app = VizBuilder.new do
+  add_page 'app.js', template: 'app.js.erb', digest: true
+end
+```
+
+WARNING: You probably don't want to use this on HTML pages
 
 ## Contributing
 
