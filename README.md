@@ -6,6 +6,8 @@ We've been using Middleman in Vox Media newsrooms for many years to build static
 
 We need something simple and fast. Something that provides only the functionality we need and uses a few simple dependencies.
 
+This is a simple ruby library and doesn't include any setup or project creation tools. If you want a helpful setup wizard or an ecosystem of extensions and tooling, checkout Middleman or a different static site generator.
+
 ## Quick Start
 
 Viz Builder is a simple library that leaves it to you to load and invoke it. There is no shell command for running it or setting up a new project.
@@ -259,7 +261,7 @@ end
 
 Viz Builder will also look in the `prebuild` directory for static assets. The builder will copy these files into the `build` directory during the build process, or it will serve these files directly during development server.
 
-Viz Builder will not transform or minify assets for you. It will not handle SCSS and it will not compile ES6+ down to ES5 Javascript. We recommend using something like [webpack](https://webpack.js.org/) to handle processing javascript and stylesheets. Whatever tool you use should be configured to save output files to `prebuild`.
+Viz Builder will not transform or minify assets for you. It will not handle SCSS and it will not compile ES6+ down to ES5 Javascript. I recommend using something like [webpack](https://webpack.js.org/) to handle processing javascript and stylesheets. Whatever tool you use should be configured to save output files to `prebuild`.
 
 If you only have a little script and style in your site, we recommend just using vanilla Javascript and CSS.
 
@@ -273,7 +275,7 @@ app = VizBuilder.new do
 end
 ```
 
-WARNING: You probably don't want to use this on HTML pages
+WARNING: You probably don't want to use the `digest` on HTML pages.
 
 ## Contributing
 

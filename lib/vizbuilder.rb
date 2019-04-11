@@ -8,16 +8,16 @@ require 'active_support/all'
 require 'ruby_dig'
 require 'base64'
 require 'digest'
+require 'english'
 
+# The VizBuilder class does all the stuff for a viz builder app
 class VizBuilder
   attr_reader :config
   delegate :sitemap, :data, :hooks, :helper_modules, to: :config
 
-  BUILD_DIR = 'build'
-  PREBUILT_DIR = 'prebuild'
-  DATA_DIR = 'data'
-
-  if foo
+  BUILD_DIR = 'build'.freeze
+  PREBUILT_DIR = 'prebuild'.freeze
+  DATA_DIR = 'data'.freeze
 
   def initialize(config = {}, &blk)
     # Config is an object used as the context for the given block
@@ -32,34 +32,37 @@ class VizBuilder
     run_hook!(:after_load_data)
     # Add helpers to the TemplateContext class
     TemplateContext.include(*helper_modules) unless helper_modules.empty?
-    self
   end
 
   # Generate all pages in the sitemap and save to `build/`
-  def build()
+  def build
     ctx = TemplateContext.new(:production, :build, @config)
     index_prebuilt!
     # First we build prebuilt pages that need digests calculated by build_page
     digested = sitemap.select { |_path, page| page[:digest] == true }
-    digested.each { |path, page| build_page(path, ctx) }
+    digested.each { |path, _page| build_page(path, ctx) }
     # Then we build all other pages
-    undigested = sitemap.select { |_path, page| page[:digest] != true }
-    undigested.each { |path, page| build_page(path, ctx) }
+    undigested = sitemap.reject { |_path, page| page[:digest] == true }
+    undigested.each { |path, _page| build_page(path, ctx) }
   end
 
   # Run this builder as a server
-  def runserver()
+  def runserver(host: '127.0.0.1', port: '3456')
     status = 0 # running: 0, reload: 1, exit: 2
     # spawn a thread to watch the status flag and trigger a reload or exit
     monitor = Thread.new do
       sleep 0.1 while status.zero?
+      # Shutdown the server, wait for it to finish and then wait a tick
       Rack::Handler::WEBrick.shutdown
       sleep 0.1
-      Kernel.exec(`ps #{$$} -o command`.split("\n").last) if status == 1
+      # Use ps to get the command that the user executed, and use Kernel.exec
+      # to execute the command, replacing the current process.
+      # Basically restart everything.
+      Kernel.exec(`ps #{$PID} -o command`.split("\n").last) if status == 1
     end
 
     # trap ctrl-c and set status flag
-    trap("SIGINT") do
+    trap('SIGINT') do
       if status == 1
         status = 2 # ctrl-c hit twice or more, set status to exit
       elsif status.zero?
@@ -70,21 +73,21 @@ class VizBuilder
     end
 
     puts "\nStarting Dev server, hit ctrl-c once to reload, twice to exit\n"
-    Rack::Handler::WEBrick.run(self, BindAddress: '127.0.0.1')
+    Rack::Handler::WEBrick.run(self, Host: host, Port: port)
     monitor.join # let the monitor thread finish its work
   end
 
   # Support the call method so an instance can act as a Rack app
   def call(env)
     # Only support GET, OPTIONS, HEAD
-    unless env['REQUEST_METHOD'].in?(%w(GET HEAD OPTIONS))
-      return [405, {'Content-Type' => 'text/plain'}, ['METHOD NOT ALLOWED']]
+    unless env['REQUEST_METHOD'].in?(%w[GET HEAD OPTIONS])
+      return [405, { 'Content-Type' => 'text/plain' }, ['METHOD NOT ALLOWED']]
     end
 
     # default response is 404 not found
     status = 404
     content_type = 'text/plain'
-    content = "404 File not found"
+    content = '404 File not found'
 
     # Validate the requested path
     path = env['PATH_INFO']
@@ -115,9 +118,7 @@ class VizBuilder
     end
 
     # Status code, headers and content for this response
-    [status, {'Content-Type' => content_type}, [content]]
-  #rescue StandardError => ex
-    #[500, {'Content-Type' => 'text/html'}, ["<h1>#{ex}</h1><pre>#{ex.backtrace.join("\n")}</pre>"]]
+    [status, { 'Content-Type' => content_type }, [content]]
   end
 
   # Force a reload of data files in `data/`
@@ -193,7 +194,10 @@ class VizBuilder
       # loop over the list of arguments, making sure they're all modules, and
       # then add them to the list of new helpers
       mods.each do |mod|
-        raise ArgumentError.new("Helpers must be defined in a module or block") unless mods.is_a?(Module)
+        unless mods.is_a?(Module)
+          raise ArgumentError, 'Helpers must be defined in a module or block'
+        end
+
         new_helpers << mod
       end
       # if block is given, turn it into a module and add it to the helpers list
@@ -202,7 +206,7 @@ class VizBuilder
       if new_helpers.present?
         # extend the current Config instance with the helpers, making them available
         # to the rest of the configuration block
-        self.extend(*new_helpers)
+        extend(*new_helpers)
         # add our new helpers to our array of all helpers
         @helper_modules += new_helpers
       end
@@ -210,9 +214,14 @@ class VizBuilder
       self
     end
 
+    def respond_to_missing?(method, *)
+      config.key?(sym) || super
+    end
+
     # Treat config options as local
     def method_missing(sym)
       return config[sym] if config.key?(sym)
+
       super
     end
   end
@@ -237,12 +246,11 @@ class VizBuilder
       # Locals is a hash thats used to resolve missing methods, making them
       # seem like local variables
       @locals = {}
-      self
     end
 
     # Render any given template and return as a string. Can be used to render
     # partials.
-    def render(template_path, locals={})
+    def render(template_path, locals = {})
       old_locals = @locals
       @locals = locals.with_indifferent_access
       erb = ERB.new(File.read(template_path), nil, true)
@@ -326,6 +334,10 @@ class VizBuilder
       return config[sym] if config.key?(sym)
       super
     end
+
+    def respond_to_missing?(sym, *)
+      @locals.key?(sym) || config.key?(sym) || super
+    end
   end
 
   private
@@ -345,7 +357,10 @@ class VizBuilder
     elsif ctx.page['file'].present?
       content = File.read(ctx.page['file'])
     else
-      raise ArgumentError("Page '#{path}' missing one of required attributes: 'template', 'json', 'yaml', 'file'.")
+      raise(
+        ArgumentError,
+        "Page '#{path}' missing one of required attributes: 'template', 'json', 'yaml', 'file'."
+      )
     end
 
     # If page data includes a digest flag, add sha1 digest to output filename
@@ -367,7 +382,7 @@ class VizBuilder
 
   # Read json and yaml files from `data/` and load them into a Hash using the
   # basename of the file names.
-  def load_data()
+  def load_data
     data = {}.with_indifferent_access
 
     Dir.glob("#{DATA_DIR}/*.json") do |fname|
