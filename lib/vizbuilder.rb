@@ -143,14 +143,15 @@ class VizBuilder
     def initialize(config: {})
       # Config is a Hash of site wide configuration variables
       @config = config.with_indifferent_access
-      # Sitemap is a hash representing the documents in the site that will be
-      # processed by Builder
-      @sitemap = {}.with_indifferent_access
       # Data contains content and data that needs displaying
       @data = {}.with_indifferent_access
       # Hooks is a hash of hook names and arrays of blocks registered to be
       # executed when those hooks are reached
       @hooks = {}.with_indifferent_access
+      # Sitemap is a hash representing the documents in the site that will be
+      # processed by Builder. No indifferent access since the keys are all
+      # file paths.
+      @sitemap = {}
       # Helpers is an array of Modules that will get mixed into the template
       # context and with the current Config instance
       @helper_modules = []
@@ -214,7 +215,7 @@ class VizBuilder
       self
     end
 
-    def respond_to_missing?(method, *)
+    def respond_to_missing?(sym, *)
       config.key?(sym) || super
     end
 
@@ -404,10 +405,6 @@ class VizBuilder
   def run_hook!(name)
     return unless hooks[name.to_sym]
     hooks[name.to_sym].each { |blk| config.instance_exec(&blk) }
-  end
-
-  def run_after_load_data_hooks!
-    run_hook!(:after_load_data)
   end
 
   # Find prebuilt assets and add them to the sitemap
