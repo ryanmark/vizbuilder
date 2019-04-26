@@ -89,7 +89,7 @@ In `index.html.erb`:
 
 ## Configuration
 
-A new `VizBuilder` instance can be configured directly or via a block pass into the constructor:
+A new `VizBuilder` instance can be configured directly or via a block passed into the constructor:
 
 ```ruby
 app = VizBuilder.new
@@ -106,7 +106,7 @@ app = VizBuilder.new do
 end
 ```
 
-There are a few config setting used by Viz Builder:
+There are a few config settings used by Viz Builder:
 
 #### http_prefix
 
@@ -116,13 +116,45 @@ Used during building for setting canonical urls and links between pages of the s
 
 Used during building for setting asset urls. Used by the `asset_path` helper detailed below.
 
+#### layout
+
+An optional setting that will render all pages inside the specified ERB layout file.
+
 ## Templates
 
-Templates are loaded by path from the root of your project directory.
+Templates are loaded by path from the root of your project directory. There are currently no special locations from which template files are loaded.  If you keep your templates in a subdirectory of your project, you'll need to include the directory when specifying the file:
 
-There are currently no special locations from which template files are loaded.
+```ruby
+# keeping our templates in a subdirectory called 'templates'
+app = VizBuilder.new do
+  add_page 'index.html', template: 'templates/index.html.erb'
+  add_page 'article.html', template: 'templates/article.html.erb'
+end
+```
 
-There is currently no support for layout files.
+#### Layouts
+
+You can have your templates render inside a `layout` file by either setting a global `:layout` or by setting the layout on a page-by-page basis.
+
+To render all pages in the app in a layout:
+
+```ruby
+app = VizBuilder.new do
+  set :layout, 'layout.html.erb'
+  add_page 'index.html', template: 'index.html.erb'
+  add_page 'article.html', template: 'article.html.erb'
+end
+```
+
+If you don't want a layout used for all pages, or if one page needs to use a different layout, you can pass `layout` to `add_page`:
+
+```ruby
+app = VizBuilder.new do
+  add_page 'index.html', template: 'index.html.erb', layout: 'layout.html.erb'
+  add_page 'article.html', template: 'article.html.erb', layout: 'article_layout.html.erb'
+  add_page 'snippet.html', template: 'snippet.html.erb' # no layout is used for this one
+end
+```
 
 ## Helpers
 
