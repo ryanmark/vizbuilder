@@ -252,6 +252,8 @@ Returns a working url pointing to a given asset. Any provided arguments will be 
 ```erb
 <%=asset_path :images, 'logo.png' %>
 <!-- outputs {asset_http_prefix}/images/logo.png --->
+<%=asset_path 'images/logo.png' %>
+<!-- also outputs {asset_http_prefix}/images/logo.png --->
 ```
 
 #### canonical_url
@@ -299,7 +301,7 @@ If you only have a little script and style in your site, we recommend just using
 
 #### Asset hashing
 
-Viz Builder automatically adds sha1 crypto hashes to the filenames of certain asset files when building out a site. Any files copied from the `prebuild` directory will get these hashes. You can have these crypto hashes added to any page with the `digest` option:
+Viz Builder automatically adds sha1 crypto hashes to the filenames of certain asset files when building out a site. Any files from the `prebuild` directory will get these hashes. You can have these crypto hashes added to any page with the `digest` option:
 
 ```ruby
 app = VizBuilder.new do
@@ -308,6 +310,15 @@ end
 ```
 
 WARNING: You probably don't want to use the `digest` on HTML pages.
+
+You must use the `asset_path` helper to always get a proper URL for your asset files:
+
+```ERB
+<script src="<%=asset_path 'javascript/app.js' %>"></script>
+<link ref="stylesheet" href="<%=asset_path 'stylesheets/app.css' %>" />
+```
+
+WARNING: If you do not use the `asset_path` helper, stuff will work in development but will break when you deploy.
 
 ## Contributing
 
