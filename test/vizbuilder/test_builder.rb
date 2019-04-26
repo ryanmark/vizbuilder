@@ -75,4 +75,31 @@ class TestBuilder < BuilderTest
     app.reload_data!
     assert_equal 3, call_count
   end
+
+  def test_project_layout
+    fixture(:simple) do
+      app = VizBuilder.new do
+        set :layout, 'layout.html.erb'
+        add_page 'index.html', template: 'test_layout.html.erb'
+      end
+      app.build! silent: true
+
+      assert_exists 'build/index.html', 'Index file is built'
+      assert_content "<html>\n<head></head>\n<body>\nHello!\n</body>\n</html>\n",
+                     'build/index.html', 'Index file content is correct'
+    end
+  end
+
+  def test_page_layout
+    fixture(:simple) do
+      app = VizBuilder.new do
+        add_page 'index.html', template: 'test_layout.html.erb', layout: 'layout.html.erb'
+      end
+      app.build! silent: true
+
+      assert_exists 'build/index.html', 'Index file is built'
+      assert_content "<html>\n<head></head>\n<body>\nHello!\n</body>\n</html>\n",
+                     'build/index.html', 'Index file content is correct'
+    end
+  end
 end

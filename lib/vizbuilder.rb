@@ -35,19 +35,19 @@ class VizBuilder
   end
 
   # Generate all pages in the sitemap and save to `build/`
-  def build
+  def build!(silent: false)
     ctx = TemplateContext.new(:production, :build, @config)
     index_prebuilt!
     # First we build prebuilt pages that need digests calculated by build_page
     digested = sitemap.select { |_path, page| page[:digest] == true }
-    digested.each { |path, _page| build_page(path, ctx) }
+    digested.each { |path, _page| build_page(path, ctx, silent: silent) }
     # Then we build all other pages
     undigested = sitemap.reject { |_path, page| page[:digest] == true }
-    undigested.each { |path, _page| build_page(path, ctx) }
+    undigested.each { |path, _page| build_page(path, ctx, silent: silent) }
   end
 
   # Run this builder as a server
-  def runserver(host: '127.0.0.1', port: '3456')
+  def runserver!(host: '127.0.0.1', port: '3456')
     status = 0 # running: 0, reload: 1, exit: 2
     # spawn a thread to watch the status flag and trigger a reload or exit
     monitor = Thread.new do
@@ -254,7 +254,7 @@ class VizBuilder
     def render(template_path, locals = {})
       old_locals = @locals
       @locals = locals.with_indifferent_access
-      erb = ERB.new(File.read(template_path), nil, true)
+      erb = ERB.new(File.read(template_path), trim_mode: '-')
       erb.filename = File.expand_path(template_path)
       ret = erb.result(binding)
       @locals = old_locals
@@ -344,7 +344,7 @@ class VizBuilder
   private
 
   # Generate one page from the sitemap and save to `build/`
-  def build_page(path, ctx)
+  def build_page(path, ctx, silent: false)
     ctx.page = sitemap[path]
     out_fname = File.join(BUILD_DIR, path)
 
@@ -364,6 +364,10 @@ class VizBuilder
       )
     end
 
+    # Check if we have a layout defined, use it
+    layout_fname = ctx.page['layout'] || config['layout']
+    content = ctx.render(layout_fname) { content } if layout_fname.present?
+
     # If page data includes a digest flag, add sha1 digest to output filename
     if ctx.page['digest'] == true
       ext = Builder.fullextname(path)
@@ -375,7 +379,7 @@ class VizBuilder
       out_fname = File.join(BUILD_DIR, dir, digest_fname)
     end
 
-    puts "Writing #{out_fname}..."
+    puts "Writing #{out_fname}..." unless silent
     FileUtils.mkdir_p(File.dirname(out_fname))
     File.write(out_fname, content)
     content
