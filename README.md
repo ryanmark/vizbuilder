@@ -32,9 +32,9 @@ end
 
 # if run with the argument `runserver` run as a development server
 if ARGV[0] == 'runserver'
-  app.runserver
+  app.runserver!
 else
-  app.build
+  app.build!
 end
 ```
 
