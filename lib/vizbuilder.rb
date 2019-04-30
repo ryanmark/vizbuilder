@@ -8,7 +8,7 @@ require 'active_support/all'
 require 'ruby_dig'
 require 'base64'
 require 'digest'
-require 'english'
+require 'English'
 
 # The VizBuilder class does all the stuff for a viz builder app
 class VizBuilder
