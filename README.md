@@ -2,7 +2,7 @@ A fast, simple static site builder, inspired by [Middleman](https://middlemanapp
 
 ## Why another static site generator?
 
-We've been using Middleman in Vox Media newsrooms for many years to build static articles and embeddable interactives. But as we've built larger projects and projects that require frequent updates, we've found that Middleman's extensive dependencies and complexity can cause high resource use and long build times. This is not a criticism of Middleman, Middleman is great and you should use it if it does what you need.
+We've been using Middleman in Vox Media newsrooms for many years to build static articles and embeddable interactives. But as we've built larger projects and projects that require frequent updates, we've found that Middleman's extensive dependencies and complexity can cause high resource use and long build times. However Middleman is great for a lot of use-cases and you should use it if it does what you need.
 
 We need something simple and fast. Something that provides only the functionality we need and uses a few simple dependencies.
 
