@@ -135,6 +135,20 @@ class VizBuilder
     ".#{parts[1..-1].join('.')}"
   end
 
+  # Plaster over API changes in ERB
+  def self.erb_new(template_path)
+    # The parameters of ERB.new are changed in ruby 2.6
+    erb_changed_ruby_version = Gem::Version.new('2.6.0')
+    current_ruby_version = Gem::Version.new(RUBY_VERSION)
+    erb = if current_ruby_version >= erb_changed_ruby_version
+            ERB.new(File.read(template_path), trim_mode: '-')
+          else
+            ERB.new(File.read(template_path), nil, '-')
+          end
+    erb.filename = File.expand_path(template_path)
+    erb
+  end
+
   # Convenience methods for configuring the site
   class Config
     attr_accessor :data, :config, :sitemap, :hooks, :helper_modules
@@ -254,8 +268,7 @@ class VizBuilder
     def render(template_path, locals = {})
       old_locals = @locals
       @locals = locals.with_indifferent_access
-      erb = ERB.new(File.read(template_path), trim_mode: '-')
-      erb.filename = File.expand_path(template_path)
+      erb = VizBuilder.erb_new(template_path)
       ret = erb.result(binding)
       @locals = old_locals
       ret
@@ -347,6 +360,7 @@ class VizBuilder
   def build_page(path, ctx, silent: false)
     ctx.page = sitemap[path]
     out_fname = File.join(BUILD_DIR, path)
+    puts "Rendering #{out_fname}..." unless silent
 
     # Check page data for info on how to build this path
     if ctx.page['template'].present?
@@ -370,7 +384,7 @@ class VizBuilder
 
     # If page data includes a digest flag, add sha1 digest to output filename
     if ctx.page['digest'] == true
-      ext = Builder.fullextname(path)
+      ext = VizBuilder.fullextname(path)
       fname = File.basename(path, ext)
       dir = File.dirname(path)
       digest = Digest::SHA1.hexdigest(content)
@@ -379,7 +393,6 @@ class VizBuilder
       out_fname = File.join(BUILD_DIR, dir, digest_fname)
     end
 
-    puts "Writing #{out_fname}..." unless silent
     FileUtils.mkdir_p(File.dirname(out_fname))
     File.write(out_fname, content)
     content
@@ -414,7 +427,7 @@ class VizBuilder
   # Find prebuilt assets and add them to the sitemap
   def index_prebuilt!
     Dir.glob("#{PREBUILT_DIR}/**/[^_]*.*") do |filename|
-      sitemap[filename.sub("#{PREBUILT_DIR}/", '')] = { file: filename, digest: true }
+      config.add_page(filename.sub("#{PREBUILT_DIR}/", ''), file: filename, digest: true)
     end
   end
 end
