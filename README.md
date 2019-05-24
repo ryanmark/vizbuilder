@@ -89,21 +89,21 @@ In `index.html.erb`:
 
 ## Configuration
 
-A new `VizBuilder` instance can be configured directly or via a block passed into the constructor:
-
-```ruby
-app = VizBuilder.new
-app.set :some_global_config_thing, 'hello world'
-app.add_page 'index.html', template: 'index.html.erb'
-```
-
-Or you can use a block:
+A new `VizBuilder` instance is configured via a block passed into the constructor:
 
 ```ruby
 app = VizBuilder.new do
   set :some_global_config_thing, 'hello world'
   add_page 'index.html', template: 'index.html.erb'
 end
+```
+
+You can add or adjust configuration directly on the `VizBuilder#config` instance, but
+it may not work as expected:
+
+```ruby
+app.config.set :some_global_config_thing, 'a different thing'
+app.config.add_page 'index.html', template: 'index.html.erb'
 ```
 
 There are a few config settings used by Viz Builder:
