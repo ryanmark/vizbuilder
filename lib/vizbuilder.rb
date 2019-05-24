@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'psych'
 require 'fileutils'
 require 'erb'
@@ -15,28 +17,24 @@ class VizBuilder
   attr_reader :config
   delegate :sitemap, :data, :hooks, :helper_modules, to: :config
 
-  BUILD_DIR = 'build'.freeze
-  PREBUILT_DIR = 'prebuild'.freeze
-  DATA_DIR = 'data'.freeze
+  BUILD_DIR = 'build'
+  PREBUILT_DIR = 'prebuild'
+  DATA_DIR = 'data'
 
   def initialize(config = {}, &blk)
     # Config is an object used as the context for the given block
     @config = Config.new(config: config)
-    # Load data into @data
-    reload_data!
-    # Execute the given block as a method of this class. The block can then use
-    # the methods `add_page`, `add_data`, and `set`
-    @config.instance_exec(&blk) if block_given?
-    # Run any after load data hooks since they got added after the first load
-    # data was called.
-    run_hook!(:after_load_data)
-    # Add helpers to the TemplateContext class
-    TemplateContext.include(*helper_modules) unless helper_modules.empty?
+    @config_block = block_given? ? blk : nil
+    @config.helpers(Helpers)
+    @config.helpers(ConfigHelpers, type: :config)
+    @config.helpers(TemplateHelpers, type: :template)
+    @_configured = false
   end
 
   # Generate all pages in the sitemap and save to `build/`
   def build!(silent: false)
-    ctx = TemplateContext.new(:production, :build, @config)
+    configure!(mode: :build, target: :production)
+    ctx = TemplateContext.new(@config)
     index_prebuilt!
     # First we build prebuilt pages that need digests calculated by build_page
     digested = sitemap.select { |_path, page| page[:digest] == true }
@@ -48,6 +46,7 @@ class VizBuilder
 
   # Run this builder as a server
   def runserver!(host: '127.0.0.1', port: '3456')
+    configure!(mode: :server, target: :development)
     status = 0 # running: 0, reload: 1, exit: 2
     # spawn a thread to watch the status flag and trigger a reload or exit
     monitor = Thread.new do
@@ -79,6 +78,8 @@ class VizBuilder
 
   # Support the call method so an instance can act as a Rack app
   def call(env)
+    raise 'VizBuilder configuration incomplete!' unless @_configured
+
     # Only support GET, OPTIONS, HEAD
     unless env['REQUEST_METHOD'].in?(%w[GET HEAD OPTIONS])
       return [405, { 'Content-Type' => 'text/plain' }, ['METHOD NOT ALLOWED']]
@@ -108,7 +109,7 @@ class VizBuilder
     # Check our sitemap then our prebuilt folder for content to serve
     if sitemap[path].present?
       content_type = MimeMagic.by_path(path).to_s
-      ctx = TemplateContext.new(:development, :server, @config)
+      ctx = TemplateContext.new(@config)
       content = build_page(path, ctx)
       status = 200
     elsif File.exist?(build_filename)
@@ -126,6 +127,31 @@ class VizBuilder
     data.merge!(load_data)
     # TODO: after load hooks only run once, not every time reload_data! is called
     run_hook!(:after_load_data)
+    # Chainable
+    self
+  end
+
+  # Complete the configuration for this app. Is used by build! and runserver!.
+  # You will only need this method if you're running VizBuilder as a rack app
+  # without using runserver!.
+  def configure!(kwargs = nil)
+    return self if @_configured
+    # Update config with any kwargs
+    @config.merge!(kwargs) if kwargs.present?
+    # Load data into @data
+    reload_data!
+    # Execute the given block as a method of this class. The block can then use
+    # the methods `add_page`, `add_data`, and `set`
+    @config.instance_exec(&@config_block) if @config_block.present?
+    # Run any after load data hooks since they got added after the first load
+    # data was called.
+    run_hook!(:after_load_data)
+    # Add helpers to the TemplateContext class
+    TemplateContext.include(*helper_modules) unless helper_modules.empty?
+    # Mark app configured
+    @_configured = true
+    # Chainable
+    self
   end
 
   # Like File.extname, but gets all extensions if multiple are present
@@ -152,7 +178,7 @@ class VizBuilder
   # Convenience methods for configuring the site
   class Config
     attr_accessor :data, :config, :sitemap, :hooks, :helper_modules
-    delegate :[], :[]=, :key?, to: :config
+    delegate :[], :[]=, :key?, :update, :merge!, to: :config
 
     def initialize(config: {})
       # Config is a Hash of site wide configuration variables
@@ -204,12 +230,12 @@ class VizBuilder
     end
 
     # Add helper modules or define helpers in a block
-    def helpers(*mods, &blk)
+    def helpers(*mods, type: nil, &blk)
       new_helpers = []
       # loop over the list of arguments, making sure they're all modules, and
       # then add them to the list of new helpers
       mods.each do |mod|
-        unless mods.is_a?(Module)
+        unless mod.is_a?(Module)
           raise ArgumentError, 'Helpers must be defined in a module or block'
         end
 
@@ -221,9 +247,9 @@ class VizBuilder
       if new_helpers.present?
         # extend the current Config instance with the helpers, making them available
         # to the rest of the configuration block
-        extend(*new_helpers)
+        extend(*new_helpers) if type.nil? || type.to_sym == :config
         # add our new helpers to our array of all helpers
-        @helper_modules += new_helpers
+        @helper_modules += new_helpers if type.nil? || type.to_sym == :template
       end
 
       self
@@ -248,11 +274,7 @@ class VizBuilder
     attr_accessor :page
     delegate :data, :sitemap, :config, to: :@config_obj
 
-    def initialize(target, mode, config)
-      # Target is development or production
-      @target = target.to_sym
-      # Mode is build or server
-      @mode = mode.to_sym
+    def initialize(config)
       # Config is our Builder config object
       @config_obj = config
       # Page is a hash representing the page. Is the same as whats in sitemap
@@ -287,8 +309,49 @@ class VizBuilder
       end
     end
 
-    # HELPERS
+    # Looks for an invoked method name in locals then in config, so locals
+    # and config vars can be used as if they're local vars in the template
+    def method_missing(sym)
+      return @locals[sym] if @locals.key?(sym)
+      return config[sym] if config.key?(sym)
+      super
+    end
 
+    def respond_to_missing?(sym, *)
+      @locals.key?(sym) || config.key?(sym) || super
+    end
+  end
+
+  # HELPERS
+
+  # The Helpers module holds methods that are added to both the config and
+  # template contexts. So you can use these in the config block and in
+  # templates.
+  module Helpers
+    # Are we running as a server?
+    def server?
+      config[:mode] == :server
+    end
+
+    # Are we building this app out?
+    def build?
+      config[:mode] == :build
+    end
+
+    # Is this in production?
+    def production?
+      config[:target] == :production
+    end
+
+    # Is this in development?
+    def development?
+      config[:target] == :development
+    end
+  end
+
+  # The TemplateHelpers modules hold methods that are added to the template
+  # context only. So you can only use these in templates.
+  module TemplateHelpers
     # Get the full URL to the root of this site
     def http_prefix
       return '/' if server? && development?
@@ -320,39 +383,11 @@ class VizBuilder
     def canonical_url(*args)
       http_prefix + args.join('/')
     end
-
-    # Are we running as a server?
-    def server?
-      @mode == :server
-    end
-
-    # Are we building this app out?
-    def build?
-      @mode == :build
-    end
-
-    # Is this in production?
-    def production?
-      @target == :production
-    end
-
-    # Is this in development?
-    def development?
-      @target == :development
-    end
-
-    # Looks for an invoked method name in locals then in config, so locals
-    # and config vars can be used as if they're local vars in the template
-    def method_missing(sym)
-      return @locals[sym] if @locals.key?(sym)
-      return config[sym] if config.key?(sym)
-      super
-    end
-
-    def respond_to_missing?(sym, *)
-      @locals.key?(sym) || config.key?(sym) || super
-    end
   end
+
+  # The ConfigHelpers modules hold methods that are added to the config block
+  # context only. So you can only use these with the config object instance.
+  module ConfigHelpers; end
 
   private
 
@@ -362,25 +397,35 @@ class VizBuilder
     out_fname = File.join(BUILD_DIR, path)
     puts "Rendering #{out_fname}..." unless silent
 
+    # Check if we have a layout defined, use it
+    layout = ctx.page['layout'] || config['layout'] || nil
+
     # Check page data for info on how to build this path
     if ctx.page['template'].present?
-      content = ctx.render(ctx.page['template'])
-    elsif ctx.page['json'].present?
-      content = ctx.page['json'].to_json
-    elsif ctx.page['yaml'].present?
-      content = ctx.page['yaml'].to_yaml
-    elsif ctx.page['file'].present?
-      content = File.read(ctx.page['file'])
+      # Make sure to render the template inside the layout render so code in the
+      # erb layout and template are executed in a sensible order.
+      content = \
+        if layout.present?
+          ctx.render(layout) { ctx.render(ctx.page['template']) }
+        else
+          ctx.render(ctx.page['template'])
+        end
     else
-      raise(
-        ArgumentError,
-        "Page '#{path}' missing one of required attributes: 'template', 'json', 'yaml', 'file'."
-      )
-    end
+      # Everything else static data and not executable, so we don't have to load
+      # the content inside the layout execution.
+      if ctx.page['json'].present?
+        content = ctx.page['json'].to_json
+      elsif ctx.page['file'].present?
+        content = File.read(ctx.page['file'])
+      else
+        raise(
+          ArgumentError,
+          "Page '#{path}' missing one of required attributes: 'template', 'json', 'file'."
+        )
+      end
 
-    # Check if we have a layout defined, use it
-    layout_fname = ctx.page['layout'] || config['layout']
-    content = ctx.render(layout_fname) { content } if layout_fname.present?
+      content = ctx.render(layout) { content } if layout.present?
+    end
 
     # If page data includes a digest flag, add sha1 digest to output filename
     if ctx.page['digest'] == true
@@ -403,16 +448,17 @@ class VizBuilder
   def load_data
     data = {}.with_indifferent_access
 
-    Dir.glob("#{DATA_DIR}/*.json") do |fname|
-      key = File.basename(fname, '.json').to_sym
-      puts "Loading data[:#{key}] from #{fname}..."
-      data[key] = JSON.parse(File.read(fname))
-    end
-
-    Dir.glob("#{DATA_DIR}/*.yaml") do |fname|
-      key = File.basename(fname, '.yaml').to_sym
-      puts "Loading data[:#{key}] from #{fname}..."
-      data[key] = Psych.parse(fname)
+    %w[.json .yaml].each do |ext|
+      Dir.glob("#{DATA_DIR}/*#{ext}") do |fname|
+        key = File.basename(fname, ext).to_sym
+        puts "Loading data[:#{key}] from #{fname}..."
+        data[key] = \
+          if ext == '.json'
+            JSON.parse(File.read(fname))
+          else
+            Psych.parse(fname)
+          end
+      end
     end
 
     data

@@ -31,7 +31,8 @@ class TestBuilder < BuilderTest
     app = VizBuilder.new do
       set :thing1, 'foo'
       set :thing2, 'bar'
-    end
+    end.configure!
+
     assert_equal 'foo', app.config[:thing1]
     assert_equal 'bar', app.config[:thing2]
     assert_equal 'foo', app.config.thing1
@@ -41,7 +42,7 @@ class TestBuilder < BuilderTest
   def test_data
     app = VizBuilder.new do
       add_data :foo, thing1: 'foo', thing2: 'bar'
-    end
+    end.configure!
 
     assert_equal 'foo', app.data[:foo][:thing1]
     assert_equal 'bar', app.data[:foo][:thing2]
@@ -53,7 +54,7 @@ class TestBuilder < BuilderTest
     page_data = { thing1: 'foo', thing2: 'bar' }
     app = VizBuilder.new do
       add_page 'index.html', page_data
-    end
+    end.configure!
 
     assert_equal page_data.with_indifferent_access, app.sitemap['index.html']
   end
@@ -67,7 +68,7 @@ class TestBuilder < BuilderTest
       after_load_data do
         call_count += 1
       end
-    end
+    end.configure!
 
     assert_equal 1, call_count
     app.reload_data!
