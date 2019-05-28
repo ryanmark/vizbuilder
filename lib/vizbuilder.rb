@@ -372,9 +372,12 @@ class VizBuilder
     def asset_path(*args)
       path = args.join('/')
       page = sitemap[path]
-      if production? && page[:digest] == true
-        raise "Missing digest for #{path}" if page[:digest_path].blank?
-        path = page[:digest_path]
+      if production?
+        raise "Missing asset #{path}" if page.blank?
+        if page[:digest] == true
+          raise "Missing digest for #{path}" if page[:digest_path].blank?
+          path = page[:digest_path]
+        end
       end
       asset_http_prefix + path
     end
