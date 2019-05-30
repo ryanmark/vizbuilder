@@ -221,6 +221,11 @@ class VizBuilder
       self
     end
 
+    # Set a global config option if it isn't already set
+    def set_default(key, val)
+      set(key, val) unless @config.key?(key)
+    end
+
     # Add code to run after data is loaded or reloaded. Is also run after object
     # is created.
     def after_load_data(&blk)
