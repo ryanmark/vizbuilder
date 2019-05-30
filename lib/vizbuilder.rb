@@ -72,7 +72,9 @@ class VizBuilder
     end
 
     puts "\nStarting Dev server, hit ctrl-c once to reload, twice to exit\n"
-    Rack::Handler::WEBrick.run(self, Host: host, Port: port)
+    require 'webrick/accesslog'
+    access_log = [[$stderr, WEBrick::AccessLog::COMMON_LOG_FORMAT]]
+    Rack::Handler::WEBrick.run(self, Host: host, Port: port, AccessLog: access_log)
     monitor.join # let the monitor thread finish its work
   end
 
@@ -120,6 +122,10 @@ class VizBuilder
 
     # Status code, headers and content for this response
     [status, { 'Content-Type' => content_type }, [content]]
+  rescue StandardError => e
+    full_exception = "#{e.class.name}: #{e.message}\n\n\t#{e.backtrace.join("\n\t")}"
+    puts full_exception
+    [500, { 'Content-Type' => 'text/plain' }, [full_exception]]
   end
 
   # Force a reload of data files in `data/`
