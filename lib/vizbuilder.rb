@@ -411,34 +411,28 @@ class VizBuilder
     out_fname = File.join(BUILD_DIR, path)
     puts "Rendering #{out_fname}..." unless silent
 
-    # Check if we have a layout defined, use it
-    layout = ctx.page['layout'] || config['layout'] || nil
-
     # Check page data for info on how to build this path
     if ctx.page['template'].present?
+      # Check if we have a layout defined, use it
+      layout = ctx.page.key?('layout') ? ctx.page['layout'] : config['layout']
+
       # Make sure to render the template inside the layout render so code in the
       # erb layout and template are executed in a sensible order.
-      content = \
+      content =
         if layout.present?
           ctx.render(layout) { ctx.render(ctx.page['template']) }
         else
           ctx.render(ctx.page['template'])
         end
+    elsif ctx.page['json'].present?
+      content = ctx.page['json'].to_json
+    elsif ctx.page['file'].present?
+      content = File.read(ctx.page['file'])
     else
-      # Everything else static data and not executable, so we don't have to load
-      # the content inside the layout execution.
-      if ctx.page['json'].present?
-        content = ctx.page['json'].to_json
-      elsif ctx.page['file'].present?
-        content = File.read(ctx.page['file'])
-      else
-        raise(
-          ArgumentError,
-          "Page '#{path}' missing one of required attributes: 'template', 'json', 'file'."
-        )
-      end
-
-      content = ctx.render(layout) { content } if layout.present?
+      raise(
+        ArgumentError,
+        "Page '#{path}' missing one of required attributes: 'template', 'json', 'file'."
+      )
     end
 
     # If page data includes a digest flag, add sha1 digest to output filename
@@ -466,7 +460,7 @@ class VizBuilder
       Dir.glob("#{DATA_DIR}/*#{ext}") do |fname|
         key = File.basename(fname, ext).to_sym
         puts "Loading data[:#{key}] from #{fname}..."
-        data[key] = \
+        data[key] =
           if ext == '.json'
             JSON.parse(File.read(fname))
           else
