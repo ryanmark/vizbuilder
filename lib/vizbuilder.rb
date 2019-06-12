@@ -105,19 +105,22 @@ class VizBuilder
     # remove any leading slashes
     path = path[1..-1] if path =~ %r{^/}
 
-    # filename for a potential prebuilt asset
-    build_filename = File.join(PREBUILT_DIR, path)
+    # files starting with _ are hidden
+    unless File.basename(path) =~ /^_/
+      # filename for a potential prebuilt asset
+      build_filename = File.join(PREBUILT_DIR, path)
 
-    # Check our sitemap then our prebuilt folder for content to serve
-    if sitemap[path].present?
-      content_type = MimeMagic.by_path(path).to_s
-      ctx = TemplateContext.new(@config)
-      content = build_page(path, ctx)
-      status = 200
-    elsif File.exist?(build_filename)
-      content_type = MimeMagic.by_path(path).to_s
-      content = File.read(build_filename)
-      status = 200
+      # Check our sitemap then our prebuilt folder for content to serve
+      if sitemap[path].present?
+        content_type = MimeMagic.by_path(path).to_s
+        ctx = TemplateContext.new(@config)
+        content = build_page(path, ctx)
+        status = 200
+      elsif File.exist?(build_filename)
+        content_type = MimeMagic.by_path(path).to_s
+        content = File.read(build_filename)
+        status = 200
+      end
     end
 
     # Status code, headers and content for this response
