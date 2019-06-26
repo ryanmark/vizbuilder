@@ -4,13 +4,14 @@ require 'psych'
 require 'fileutils'
 require 'erb'
 require 'json'
-require 'rack'
 require 'mimemagic'
 require 'active_support/all'
 require 'ruby_dig'
 require 'base64'
 require 'digest'
 require 'English'
+require 'hashie/mash'
+require 'ice_nine'
 
 # The VizBuilder class does all the stuff for a viz builder app
 class VizBuilder
@@ -46,8 +47,11 @@ class VizBuilder
 
   # Run this builder as a server
   def runserver!(host: '127.0.0.1', port: '3456')
+    require 'rack'
+    require 'webrick/accesslog'
     configure!(mode: :server, target: :development)
     status = 0 # running: 0, reload: 1, exit: 2
+
     # spawn a thread to watch the status flag and trigger a reload or exit
     monitor = Thread.new do
       sleep 0.1 while status.zero?
@@ -72,7 +76,6 @@ class VizBuilder
     end
 
     puts "\nStarting Dev server, hit ctrl-c once to reload, twice to exit\n"
-    require 'webrick/accesslog'
     access_log = [[$stderr, WEBrick::AccessLog::COMMON_LOG_FORMAT]]
     Rack::Handler::WEBrick.run(self, Host: host, Port: port, AccessLog: access_log)
     monitor.join # let the monitor thread finish its work
@@ -191,12 +194,12 @@ class VizBuilder
 
     def initialize(config: {})
       # Config is a Hash of site wide configuration variables
-      @config = config.with_indifferent_access
+      @config = Hashie::Mash.new(config)
       # Data contains content and data that needs displaying
-      @data = {}.with_indifferent_access
+      @data = Hashie::Mash.new
       # Hooks is a hash of hook names and arrays of blocks registered to be
       # executed when those hooks are reached
-      @hooks = {}.with_indifferent_access
+      @hooks = {}
       # Sitemap is a hash representing the documents in the site that will be
       # processed by Builder. No indifferent access since the keys are all
       # file paths.
@@ -208,25 +211,25 @@ class VizBuilder
 
     # Add a page to the sitemap
     def add_page(path, kwargs)
-      @sitemap[path] = kwargs.with_indifferent_access
+      @sitemap[path] = IceNine.deep_freeze!(Hashie::Mash.new(kwargs))
       self
     end
 
     # Add or replace data
     def add_data(key, val)
-      @data[key] = val.is_a?(Hash) ? val.with_indifferent_access : val
+      @data[key] = IceNine.deep_freeze!(val.is_a?(Hash) ? Hashie::Mash.new(val) : val)
       self
     end
 
     # Set a global config option
     def set(key, val)
-      @config[key] = val.is_a?(Hash) ? val.with_indifferent_access : val
+      @config[key] = IceNine.deep_freeze!(val.is_a?(Hash) ? Hashie::Mash.new(val) : val)
       self
     end
 
     # Set a global config option if it isn't already set
     def set_default(key, val)
-      set(key, val) unless @config.key?(key)
+      set(key, val) unless @config.key?(key.to_s)
     end
 
     # Add code to run after data is loaded or reloaded. Is also run after object
@@ -457,18 +460,18 @@ class VizBuilder
   # Read json and yaml files from `data/` and load them into a Hash using the
   # basename of the file names.
   def load_data
-    data = {}.with_indifferent_access
+    data = Hashie::Mash.new
 
     %w[.json .yaml].each do |ext|
       Dir.glob("#{DATA_DIR}/*#{ext}") do |fname|
         key = File.basename(fname, ext).to_sym
         puts "Loading data[:#{key}] from #{fname}..."
         data[key] =
-          if ext == '.json'
-            JSON.parse(File.read(fname))
-          else
-            Psych.parse(fname)
-          end
+          IceNine.deep_freeze!(
+            Hashie::Mash.new(
+              ext == '.json' ? JSON.parse(File.read(fname)) : Psych.parse(fname)
+            )
+          )
       end
     end
 

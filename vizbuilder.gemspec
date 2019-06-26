@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
@@ -16,6 +18,8 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_dependency 'activesupport', '~> 5.2'
+  spec.add_dependency 'hashie', '~> 3.6.0'
+  spec.add_dependency 'ice_nine', '~> 0.11.2'
   spec.add_dependency 'mimemagic', '~> 0.3'
   spec.add_dependency 'rack', '~> 2.0'
   spec.add_dependency 'ruby_dig', '~> 0.0.2'
