@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ['ryan@mrk.cc']
 
   spec.summary       = 'Simple and fast static site generator'
-  spec.homepage      = 'https://github.com/ryanmark/vizbuilder-ruby'
+  spec.homepage      = 'https://github.com/ryanmark/vizbuilder'
 
   spec.files = `git ls-files -z`.split("\x0").reject do |f|
     f.match(%r{^(test|spec|features)/})
