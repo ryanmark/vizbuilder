@@ -465,7 +465,7 @@ class VizBuilder
     %w[.json .yaml].each do |ext|
       Dir.glob("#{DATA_DIR}/*#{ext}") do |fname|
         key = File.basename(fname, ext).to_sym
-        puts "Loading data[:#{key}] from #{fname}..."
+        puts "Loading data.#{key} from #{fname}..."
         data[key] =
           IceNine.deep_freeze!(
             Hashie::Mash.new(
