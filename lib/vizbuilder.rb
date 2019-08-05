@@ -368,7 +368,6 @@ class VizBuilder
   module TemplateHelpers
     # Get the full URL to the root of this site
     def http_prefix
-      return '/' if server? && development?
       prefix = config[:http_prefix] || '/'
       prefix += '/' unless prefix =~ %r{/$}
       prefix
@@ -376,7 +375,6 @@ class VizBuilder
 
     # Get the full URL to the root of where assets are stored
     def asset_http_prefix
-      return '/' if server? && development?
       prefix = config[:asset_http_prefix] || http_prefix
       prefix += '/' unless prefix =~ %r{/$}
       prefix
