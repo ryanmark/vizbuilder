@@ -110,11 +110,11 @@ There are a few config settings used by Viz Builder:
 
 #### http_prefix
 
-Used during building for setting canonical urls and links between pages of the site. Used by the `canonical_url` helper detailed below.
+Used in all modes for setting canonical urls and links between pages of the site. Used by the `canonical_url` helper detailed below. Defaults to `'/'`.
 
 #### asset_http_prefix
 
-Used during building for setting asset urls. Used by the `asset_path` helper detailed below.
+Used in all modes for setting asset urls. Used by the `asset_path` helper detailed below. Defaults to `http_prefix` or `'/'`.
 
 #### layout
 
@@ -265,21 +265,32 @@ Returns the full domain name and path to the root of the site. Any provided argu
 <!-- outputs {http_prefix}/page1 --->
 ```
 
-#### build?
+#### production?
 
-True if Viz Builder is building out all the pages and not running as a rack app (aka web server).
+True if Viz Builder is running in production mode. Necessary for setting different http prefix settings for production vs development.
 
-#### server?
-
-True if Viz Builder is running as a rack app (aka web server).
+```ruby
+app = VizBuilder.new do
+  ...
+  if production?
+    set :http_prefix, 'http://www.example.com'
+    set :asset_http_prefix, 'http://cdn.example.com'
+  end
+  ...
+end
+```
 
 #### development?
 
-True if Viz Builder is running in development mode. Usually synonymous with `server?`.
+True if Viz Builder is running in development mode. Opposite of `production?`.
 
-#### production?
+#### build?
 
-True if Viz Builder is running in production mode. Usually synonymous with `build?`.
+True if Viz Builder is building out all the pages and not running as a rack app (aka web server). Usually synonymous with `production?`.
+
+#### server?
+
+True if Viz Builder is running as a rack app (aka web server). Usually synonymous with `development?`.
 
 ## Assets
 
