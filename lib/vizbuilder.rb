@@ -34,14 +34,13 @@ class VizBuilder
   # Generate all pages in the sitemap and save to `build/`
   def build!(silent: false)
     configure!(mode: :build, target: :production)
-    ctx = TemplateContext.new(@config)
     index_prebuilt!
     # First we build prebuilt pages that need digests calculated by build_page
     digested = sitemap.select { |_path, page| page[:digest] == true }
-    digested.each { |path, _page| build_page(path, ctx, silent: silent) }
+    digested.each { |path, _page| build_page(path, TemplateContext.new(@config), silent: silent) }
     # Then we build all other pages
     undigested = sitemap.reject { |_path, page| page[:digest] == true }
-    undigested.each { |path, _page| build_page(path, ctx, silent: silent) }
+    undigested.each { |path, _page| build_page(path, TemplateContext.new(@config), silent: silent) }
   end
 
   # Run this builder as a server
