@@ -37,10 +37,10 @@ class VizBuilder
     index_prebuilt!
     # First we build prebuilt pages that need digests calculated by build_page
     digested = sitemap.select { |_path, page| page[:digest] == true }
-    digested.each { |path, _page| build_page(path, TemplateContext.new(@config), silent: silent) }
+    digested.each { |path, _page| build_page(path, silent: silent) }
     # Then we build all other pages
     undigested = sitemap.reject { |_path, page| page[:digest] == true }
-    undigested.each { |path, _page| build_page(path, TemplateContext.new(@config), silent: silent) }
+    undigested.each { |path, _page| build_page(path, silent: silent) }
   end
 
   # Run this builder as a server
@@ -112,8 +112,7 @@ class VizBuilder
       # Check our sitemap then our prebuilt folder for content to serve
       if sitemap[path].present?
         content_type = MimeMagic.by_path(path).to_s
-        ctx = TemplateContext.new(@config)
-        content = build_page(path, ctx)
+        content = build_page(path)
         status = 200
       elsif File.exist?(build_filename)
         content_type = MimeMagic.by_path(path).to_s
@@ -155,7 +154,7 @@ class VizBuilder
     # data was called.
     run_hook!(:after_load_data)
     # Add helpers to the TemplateContext class
-    TemplateContext.include(*helper_modules) unless helper_modules.empty?
+    TemplateContext.include(*helper_modules.reverse) unless helper_modules.empty?
     # Mark app configured
     @_configured = true
     # Chainable
@@ -260,7 +259,7 @@ class VizBuilder
       if new_helpers.present?
         # extend the current Config instance with the helpers, making them available
         # to the rest of the configuration block
-        extend(*new_helpers) if type.nil? || type.to_sym == :config
+        extend(*new_helpers.reverse) if type.nil? || type.to_sym == :config
         # add our new helpers to our array of all helpers
         @helper_modules += new_helpers if type.nil? || type.to_sym == :template
       end
@@ -406,13 +405,15 @@ class VizBuilder
   private
 
   # Generate one page from the sitemap and save to `build/`
-  def build_page(path, ctx, silent: false)
-    ctx.page = sitemap[path]
+  def build_page(path, silent: false)
+    page = sitemap[path]
     out_fname = File.join(BUILD_DIR, path)
     puts "Rendering #{out_fname}..." unless silent
 
     # Check page data for info on how to build this path
-    if ctx.page['template'].present?
+    if page['template'].present?
+      ctx = TemplateContext.new(@config)
+      ctx.page = page
       # Check if we have a layout defined, use it
       layout = ctx.page.key?('layout') ? ctx.page['layout'] : config['layout']
 
@@ -424,10 +425,10 @@ class VizBuilder
         else
           ctx.render(ctx.page['template'])
         end
-    elsif ctx.page['json'].present?
-      content = ctx.page['json'].to_json
-    elsif ctx.page['file'].present?
-      content = File.read(ctx.page['file'])
+    elsif page['json'].present?
+      content = page['json'].to_json
+    elsif page['file'].present?
+      content = File.read(page['file'])
     else
       raise(
         ArgumentError,
@@ -436,13 +437,13 @@ class VizBuilder
     end
 
     # If page data includes a digest flag, add sha1 digest to output filename
-    if ctx.page['digest'] == true
+    if page['digest'] == true
       ext = VizBuilder.fullextname(path)
       fname = File.basename(path, ext)
       dir = File.dirname(path)
       digest = Digest::SHA1.hexdigest(content)
       digest_fname = "#{fname}-#{digest}#{ext}"
-      ctx.page['digest_path'] = "#{dir}/#{digest_fname}"
+      page['digest_path'] = "#{dir}/#{digest_fname}"
       out_fname = File.join(BUILD_DIR, dir, digest_fname)
     end
 
